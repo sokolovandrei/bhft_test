@@ -1,0 +1,68 @@
+# roles/manage_interface/tasks/configure_netplan.yml
+---
+- name: Find existing netplan configuration file
+  shell: "ls /etc/netplan/*.yaml"
+  register: netplan_files
+  changed_when: false
+
+- name: Set netplan filename if found
+  set_fact:
+    netplan_file: "{{ netplan_files.stdout_lines[0] }}"
+  when: netplan_files.stdout_lines | length > 0
+
+- name: Fail if no netplan configuration file is found
+  fail:
+    msg: "No netplan configuration file found in /etc/netplan/"
+  when: netplan_files.stdout_lines | length == 0
+
+- name: Display the netplan configuration file to be used
+  debug:
+    var: netplan_file
+
+- name: Backup existing netplan configuration
+  copy:
+    src: "{{ netplan_file }}"
+    dest: "{{ netplan_file }}.bak"
+    remote_src: yes
+  become: yes
+
+- name: Get current network interface name from netplan
+  shell: "grep 'set-name:' {{ netplan_file }} | awk '{print $2}'"
+  register: current_interface
+  changed_when: false
+
+- name: Replace interface name to net0 in netplan configuration
+  replace:
+    path: "{{ netplan_file }}"
+    regexp: "set-name: {{ current_interface.stdout }}"
+    replace: "set-name: net0"
+  become: yes
+  when: current_interface.stdout != 'net0'
+
+- name: Apply netplan configuration
+  command: netplan apply
+  become: yes
+
+- name: Verify new interface name
+  command: ip link show net0
+  register: net0_check
+  failed_when: net0_check.rc != 0
+
+- name: Restore original netplan configuration if failed
+  block:
+    - name: Restore original netplan configuration
+      copy:
+        src: "{{ netplan_file }}.bak"
+        dest: "{{ netplan_file }}"
+        remote_src: yes
+      become: yes
+
+    - name: Apply restored netplan configuration
+      command: netplan apply
+      become: yes
+
+    - name: Fail with error message
+      fail:
+        msg: "Failed to rename the network interface to net0. Reverted changes."
+  when: net0_check.failed
+

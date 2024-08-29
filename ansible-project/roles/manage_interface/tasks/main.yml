@@ -1,0 +1,15 @@
+# roles/manage_interface/tasks/main.yml
+---
+- name: Ensure required utilities are installed
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - netplan.io
+    - grep
+  become: yes
+  tags: utilities
+
+- import_tasks: configure_netplan.yml
+  tags: netplan
+
