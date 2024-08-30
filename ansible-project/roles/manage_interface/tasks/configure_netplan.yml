@@ -1,4 +1,3 @@
-# roles/manage_interface/tasks/configure_netplan.yml
 ---
 - name: Find existing netplan configuration file
   shell: "ls /etc/netplan/*.yaml"
@@ -31,6 +30,11 @@
   register: current_interface
   changed_when: false
 
+- name: Check if the interface is already named 'net0'
+  debug:
+    msg: "The network interface is already named 'net0'. No changes are needed."
+  when: current_interface.stdout == 'net0'
+
 - name: Replace interface name to net0 in netplan configuration
   replace:
     path: "{{ netplan_file }}"
@@ -42,11 +46,22 @@
 - name: Apply netplan configuration
   command: netplan apply
   become: yes
+  when: current_interface.stdout != 'net0'
 
 - name: Verify new interface name
   command: ip link show net0
   register: net0_check
-  failed_when: net0_check.rc != 0
+  failed_when: false
+  when: current_interface.stdout != 'net0'
+
+- name: Debug net0_check to inspect the actual output
+  debug:
+    var: net0_check
+
+- name: Display information about the renamed interface
+  debug:
+    msg: "Interface renamed to 'net0'. Details: {{ net0_check.stdout_lines | join(' ') }}"
+  when: net0_check is defined and net0_check.stdout_lines is defined and 'net0:' in net0_check.stdout_lines[0] and current_interface.stdout != 'net0'
 
 - name: Restore original netplan configuration if failed
   block:
@@ -64,5 +79,5 @@
     - name: Fail with error message
       fail:
         msg: "Failed to rename the network interface to net0. Reverted changes."
-  when: net0_check.failed
+  when: net0_check is defined and net0_check.rc is defined and net0_check.rc != 0
 
