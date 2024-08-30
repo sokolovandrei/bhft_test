@@ -1,0 +1,46 @@
+---
+- name: Check if the partition exists for encryption
+  stat:
+    path: "{{ partition_name }}"
+  register: partition_exists
+
+- name: Fail if the partition does not exist
+  fail:
+    msg: "The specified partition {{ partition_name }} does not exist."
+  when: not partition_exists.stat.exists
+
+- name: Check if the partition is already encrypted
+  command: "blkid -o value -s TYPE {{ partition_name }}"
+  register: partition_type
+  ignore_errors: true
+  changed_when: false
+
+- name: Skip encryption if partition is already encrypted
+  when: partition_type.stdout == "crypto_LUKS"
+  debug:
+    msg: "Partition {{ partition_name }} is already encrypted with LUKS."
+
+- name: Ensure the disk is clear of any filesystem signatures
+  shell: "wipefs -a {{ partition_name }}"
+  become: yes
+  when: partition_type.stdout != "crypto_LUKS"
+
+- name: Check the LUKS passphrase value
+  debug:
+    msg: "Passphrase is: {{ vault_luks_passphrase }}"
+  no_log: false
+
+- name: Encrypt the partition with LUKS
+  block:
+    - name: Format the partition with LUKS
+      shell: "echo -n '{{ vault_luks_passphrase }}' | cryptsetup luksFormat {{ partition_name }} 2>/dev/null"
+      become: yes
+      no_log: true
+      when: partition_type.stdout != "crypto_LUKS"
+
+  rescue:
+    - name: Fail with error message
+      fail:
+        msg: "Failed to encrypt the partition {{ partition_name }}."
+  tags: encrypt_second
+

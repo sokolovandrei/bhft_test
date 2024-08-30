@@ -1,0 +1,17 @@
+---
+- name: Ensure required utilities are installed
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - cryptsetup
+    - grep
+  become: yes
+  tags: utilities
+
+- import_tasks: encrypt_second_disk.yml
+  tags: encrypt_second
+
+- import_tasks: encrypt_partition_next_to_root.yml
+  tags: encrypt_root_adjacent
+

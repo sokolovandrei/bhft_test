@@ -1,0 +1,81 @@
+---
+- name: Identify the root partition
+  command: "findmnt -n -o SOURCE /"
+  register: root_partition
+  changed_when: false
+
+- name: Identify the disk of the root partition
+  set_fact:
+    root_disk: "{{ root_partition.stdout | regex_replace('/dev/', '') | regex_replace('[0-9]+$', '') }}"
+
+- name: Find all partitions on the same disk as the root partition
+  shell: "lsblk -ln -o NAME,TYPE,MOUNTPOINT | grep -E '^{{ root_disk }}[0-9]+' | awk '$2 == \"part\" {print \"/dev/\" $1, $3}'"
+  register: root_disk_partitions
+  changed_when: false
+
+- name: Identify non-root and non-system partition for encryption
+  set_fact:
+    adjacent_partition: "{{ item.split()[0] }}"
+  with_items: "{{ root_disk_partitions.stdout_lines }}"
+  when: item.split() | length > 1 and (item.split()[1] == "" or item.split()[1] is undefined) and item.split()[0] != root_partition.stdout
+
+- name: Check if a partition with the label 'ENCRYPT_ME_IF_YOU_CAN' already exists
+  shell: "lsblk -ln -o NAME,LABEL | grep 'ENCRYPT_ME_IF_YOU_CAN'"
+  register: labeled_partition
+  ignore_errors: true
+  changed_when: false
+
+- name: Set the adjacent partition fact to the existing labeled partition
+  set_fact:
+    adjacent_partition: "/dev/{{ labeled_partition.stdout.split()[0] }}"
+  when: labeled_partition.stdout | length > 0
+
+- name: Warn if no suitable partition found for encryption
+  debug:
+    msg: "No suitable partition found on the root disk for encryption. Please create a new partition manually and rerun the playbook for encryption."
+  when: adjacent_partition is not defined
+
+- name: Fail gracefully if no suitable partition found
+  fail:
+    msg: "No suitable partition found on the root disk for encryption, and a new partition was not created automatically. Please create a new partition manually."
+  when: adjacent_partition is not defined
+  ignore_errors: true  # Playbook will not stop on this failure, it will just log it.
+
+- name: Check if the identified partition is already encrypted
+  command: "blkid -o value -s TYPE {{ adjacent_partition }}"
+  register: partition_type
+  ignore_errors: true
+  changed_when: false
+  when: adjacent_partition is defined  # Ensure this task runs only if adjacent_partition is defined
+
+- name: Skip encryption if partition is already encrypted
+  when: adjacent_partition is defined and partition_type.stdout == "crypto_LUKS"
+  debug:
+    msg: "Partition {{ adjacent_partition }} is already encrypted with LUKS."
+
+- name: Ensure the disk is clear of any filesystem signatures
+  shell: "wipefs -a {{ adjacent_partition }}"
+  become: yes
+  when: adjacent_partition is defined and partition_type.stdout != "crypto_LUKS"
+
+- name: Check the LUKS passphrase value
+  debug:
+    msg: "Passphrase is: {{ vault_luks_passphrase }}"
+  no_log: true
+  when: adjacent_partition is defined
+
+- name: Encrypt the identified partition with LUKS
+  block:
+    - name: Format the identified partition with LUKS
+      shell: "echo -n '{{ vault_luks_passphrase }}' | cryptsetup luksFormat {{ adjacent_partition }} 2>/dev/null"
+      become: yes
+      no_log: true
+      when: adjacent_partition is defined and partition_type.stdout != "crypto_LUKS"
+
+  rescue:
+    - name: Fail with error message
+      fail:
+        msg: "Failed to encrypt the partition {{ adjacent_partition }}."
+  when: adjacent_partition is defined
+  tags: encrypt_root_adjacent
+

@@ -1,8 +1,22 @@
-# playbook.yml
 ---
-- name: Configure network interface on servers
+- name: Configure network interface on AWS servers
   hosts: servers
   become: yes
+  gather_facts: yes  
   roles:
-    - { role: manage_interface, tags: ["netplan", "utilities"] }
+    - role: manage_interface
+      tags:
+        - netplan
+
+- name: Encrypt partitions on AWS servers
+  hosts: servers
+  become: yes
+  vars_files:
+    - vault.yml
+  gather_facts: yes  
+  roles:
+    - role: encrypt_partitions
+      tags:
+        - encrypt_second
+        - encrypt_root_adjacent
 
