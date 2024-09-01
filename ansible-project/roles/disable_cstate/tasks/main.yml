@@ -1,0 +1,3 @@
+---
+- import_tasks: disable_cstate.yml
+  tags: cstate

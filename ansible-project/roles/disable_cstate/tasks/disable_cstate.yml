@@ -1,0 +1,102 @@
+---
+- name: Ensure required utilities are installed
+  package:
+    name:
+      - tuned
+      - linux-tools-common
+      - linux-tools-{{ ansible_kernel }}
+    state: present
+  become: yes
+
+- name: Gather all available CPUs
+  shell: "lscpu -p=CPU | grep -E '^[0-9]+'"
+  register: cpu_cores
+  changed_when: false
+
+- name: Check current C-state settings for each CPU
+  shell: "cat /sys/devices/system/cpu/cpu{{ item }}/cpuidle/state*/disable"
+  register: cstate_status
+  changed_when: false
+  with_items: "{{ cpu_cores.stdout_lines | map('int') }}"
+
+- name: Process and log C-state status for each CPU
+  set_fact:
+    cstate_info: "{{ cstate_info | default({}) | combine({item.item: {'enabled': ('0' in item.stdout), 'disable_files': item.stdout_lines}}) }}"
+  with_items: "{{ cstate_status.results }}"
+
+- name: Log current C-state status for all CPUs
+  debug:
+    msg: >
+      C-state Status:
+      {% for cpu, info in cstate_info.items() %}
+        - CPU {{ cpu }}: 
+          Enabled: {{ info.enabled }}
+          Disable Files: {{ info.disable_files }}
+      {% endfor %}
+
+- name: Find C-state disable files
+  shell: "find /sys/devices/system/cpu/cpu{{ item }}/cpuidle/ -name 'disable'"
+  register: disable_files
+  changed_when: false
+  with_items: "{{ cstate_info.keys() | map('int') }}"
+
+- name: Check existence of disable files
+  stat:
+    path: "{{ item }}"
+  register: disable_file_stats
+  with_items: "{{ disable_files.results | map(attribute='stdout_lines') | flatten }}"
+
+- name: Filter valid disable files
+  set_fact:
+    valid_disable_files: "{{ valid_disable_files | default([]) + [item.item] }}"
+  when: item.stat.exists
+  with_items: "{{ disable_file_stats.results }}"
+
+- name: Log valid disable files for C-states
+  debug:
+    msg: "Valid disable files: {{ valid_disable_files }}"
+
+- name: Disable C-states where they are enabled and files exist
+  shell: "echo '1' > {{ item }}"
+  become: yes
+  with_items: "{{ valid_disable_files }}"
+  ignore_errors: yes
+
+- name: Verify C-states are disabled for each CPU
+  shell: "cat /sys/devices/system/cpu/cpu{{ item }}/cpuidle/state*/disable"
+  register: verify_cstate
+  changed_when: false
+  with_items: "{{ cpu_cores.stdout_lines | map('int') }}"
+
+- name: Update C-state verification info for each CPU
+  set_fact:
+    cstate_info: "{{ cstate_info | combine({item.item: {'enabled': ('0' in item.stdout), 'verification': item.stdout_lines}}) }}"
+  with_items: "{{ verify_cstate.results }}"
+
+- name: Log final C-state status after disable attempt
+  debug:
+    msg: >
+      Final C-state Status:
+      {% for cpu, info in cstate_info.items() %}
+        - CPU {{ cpu }}: 
+          Enabled: {{ info.enabled }}
+          Verification: {{ info.verification }}
+      {% endfor %}
+  when: cstate_info | length > 0
+
+- name: Log successful C-state disablement
+  debug:
+    msg: "C-states successfully disabled on all CPUs where required."
+  when: cstate_info | length > 0 and cstate_info.values() | selectattr('enabled', 'equalto', false) | list | length == cstate_info | length
+
+- name: Log message if C-states could not be disabled
+  debug:
+    msg: >
+      Failed to disable C-states on CPUs:
+      {% for cpu, info in cstate_info.items() %}
+        {% if info.enabled %}
+          - CPU {{ cpu }} still has C-states enabled.
+        {% endif %}
+      {% endfor %}
+  when: cstate_info.values() | selectattr('enabled', 'equalto', true) | list | length > 0
+

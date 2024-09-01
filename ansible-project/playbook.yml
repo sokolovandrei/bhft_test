@@ -20,3 +20,11 @@
         - encrypt_second
         - encrypt_root_adjacent
 
+- name: Disable C-states on AWS servers
+  hosts: servers
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: disable_cstate
+      tags:
+        - cstate

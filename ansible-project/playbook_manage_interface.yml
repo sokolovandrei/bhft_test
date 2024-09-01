@@ -1,8 +1,0 @@
-# playbook.yml
----
-- name: Configure network interface on servers
-  hosts: servers
-  become: yes
-  roles:
-    - { role: manage_interface, tags: ["netplan", "utilities"] }
-
