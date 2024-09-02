@@ -1,0 +1,20 @@
+---
+- name: Check current active tuned profile
+  shell: "tuned-adm active"
+  register: current_profile
+  changed_when: false
+  tags:
+    - check_profile
+    - switch_cpu_mode
+- name: Log current active profile
+  debug:
+    msg: "Current active profile: {{ current_profile.stdout }}"
+  tags:
+    - check_profile
+    - switch_cpu_mode
+- name: Determine if profile is already 'latency-performance'
+  set_fact:
+    profile_already_set: "{{ 'latency-performance' in current_profile.stdout }}"
+  tags:
+    - check_profile
+    - switch_cpu_mode

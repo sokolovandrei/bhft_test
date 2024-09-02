@@ -1,0 +1,19 @@
+---
+- name: Ensure required utilities are installed
+  apt:
+    name: tuned
+    state: present
+  become: yes
+  tags:
+    - switch_cpu_mode
+    - check_profile
+    - switch_performance
+
+- import_tasks: check_current_profile.yml
+  tags:
+    - check_profile
+
+- import_tasks: switch_to_performance_mode.yml
+  tags:
+    - switch_performance
+

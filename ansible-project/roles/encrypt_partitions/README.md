@@ -20,9 +20,9 @@ This role automates the encryption of specific partitions on AWS servers using L
 3. Run the playbook with the following command:
 
    ```bash
-   ansible-playbook -i inventory/hosts.ini playbook.yml --ask-vault-pass
+   ansible-playbook -i inventory/hosts.ini playbook.yml --ask-vault-pass -t "encrypt_partition" # To run all roles for encrypting disk partitions
    or
-   ansible-playbook -i inventory/hosts.ini playbook.yml --ask-vault-pass -t "encrypt_second"
+   ansible-playbook -i inventory/hosts.ini playbook.yml --ask-vault-pass -t "encrypt_second"    # To run the role for encrypting the second disk in the system
    or 
-   ansible-playbook -i inventory/hosts.ini playbook.yml --ask-vault-pass -t "encrypt_root_adjacent"
+   ansible-playbook -i inventory/hosts.ini playbook.yml --ask-vault-pass -t "encrypt_root_adjacent"  # To run the role for encrypting the partition that is present on the disk next to the root partition
 

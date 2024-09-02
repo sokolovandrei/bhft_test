@@ -1,0 +1,40 @@
+---
+- name: Switch to 'latency-performance' profile if not already set
+  command: tuned-adm profile latency-performance
+  become: yes
+  when: not profile_already_set
+  tags:
+    - switch_performance
+    - switch_cpu_mode
+
+- name: Verify the profile switch
+  shell: "tuned-adm active"
+  register: verify_profile
+  changed_when: false
+  tags:
+    - switch_performance
+    - switch_cpu_mode
+
+- name: Log final profile after switching
+  debug:
+    msg: "Final active profile: {{ verify_profile.stdout }}"
+  tags:
+    - switch_performance
+    - switch_cpu_mode
+
+- name: Log success message if profile switched correctly
+  debug:
+    msg: "CPU operation switched to a more productive mode with 'latency-performance' profile."
+  when: "'latency-performance' in verify_profile.stdout"
+  tags:
+    - switch_performance
+    - switch_cpu_mode
+
+- name: Log message if profile switch was not necessary
+  debug:
+    msg: "CPU operation is already in the more productive mode with 'latency-performance' profile."
+  when: profile_already_set
+  tags:
+    - switch_performance
+    - switch_cpu_mode
+

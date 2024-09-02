@@ -16,7 +16,5 @@ The role does not require additional variables.
 3. Run the playbook with the following command:
 
    ```bash
-   ansible-playbook -i inventory/hosts.ini playbook.yml --ask-vault-pass
-   or
    ansible-playbook -i inventory/hosts.ini playbook.yml --ask-vault-pass -t "netplan"
 

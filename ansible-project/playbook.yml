@@ -17,8 +17,7 @@
   roles:
     - role: encrypt_partitions
       tags:
-        - encrypt_second
-        - encrypt_root_adjacent
+        - encrypt_partition
 
 - name: Disable C-states on AWS servers
   hosts: servers
@@ -28,3 +27,11 @@
     - role: disable_cstate
       tags:
         - cstate
+
+- name: Switch CPU operation to more productive mode on AWS servers
+  hosts: servers
+  become: yes
+  roles:
+    - role: switch_cpu_mode
+      tags:
+        - switch_cpu_mode

@@ -18,7 +18,5 @@ This role automates the process of disabling C-states on all available CPUs of A
 3. Run the playbook with the following command:
 
    ```bash
-   ansible-playbook -i inventory/hosts.ini playbook.yml
-   or 
    ansible-playbook -i inventory/hosts.ini playbook.yml -t "cstate"
 

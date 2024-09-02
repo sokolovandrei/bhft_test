@@ -7,11 +7,16 @@
     - cryptsetup
     - grep
   become: yes
-  tags: utilities
+  tags: 
+    - encrypt_partition
+    - encrypt_second
+    - encrypt_root_adjacent
 
 - import_tasks: encrypt_second_disk.yml
-  tags: encrypt_second
-
+  tags: 
+    - encrypt_second
+    - encrypt_partition
 - import_tasks: encrypt_partition_next_to_root.yml
-  tags: encrypt_root_adjacent
-
+  tags: 
+    - encrypt_root_adjacent
+    - encrypt_partition
