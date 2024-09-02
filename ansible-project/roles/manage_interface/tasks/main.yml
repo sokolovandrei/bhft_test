@@ -1,4 +1,3 @@
-# roles/manage_interface/tasks/main.yml
 ---
 - name: Ensure required utilities are installed
   apt:

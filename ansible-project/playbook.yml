@@ -35,3 +35,43 @@
     - role: switch_cpu_mode
       tags:
         - switch_cpu_mode
+
+- name: Display CPU and Hyper-Threading/Multithreading information
+  hosts: servers
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Extract CPU details from Ansible facts
+      set_fact:
+        cpu_details:
+          cpus: "{{ ansible_facts['processor_cores'] * ansible_facts['processor_count'] }}"
+          cores_per_socket: "{{ ansible_facts['processor_cores'] }}"
+          threads_per_core: "{{ ansible_facts['processor_threads_per_core'] }}"
+      tags:
+        - cpu_info
+
+    - name: Gather detailed CPU information using lscpu
+      command: lscpu
+      register: lscpu_output
+      tags:
+        - cpu_info
+
+    - name: Extract CPU model name and vendor from lscpu output
+      set_fact:
+        model_name: "{{ lscpu_output.stdout | regex_search('Model name:\\s+(.+)', '\\1', multiline=True) | trim }}"
+        vendor_id: "{{ lscpu_output.stdout | regex_search('Vendor ID:\\s+(.+)', '\\1', multiline=True) | trim }}"
+      tags:
+        - cpu_info
+
+    - name: Display parsed CPU information
+      debug:
+        msg:
+          CPUs: "{{ cpu_details.cpus }}"
+          Cores_per_Socket: "{{ cpu_details.cores_per_socket }}"
+          Threads_per_Core: "{{ cpu_details.threads_per_core }}"
+          Vendor_ID: "{{ vendor_id }}"
+          Model_Name: "{{ model_name }}"
+          Hyper_Threading_Enabled: "{{ (cpu_details.threads_per_core | int) > 1 }}"
+      tags:
+        - cpu_info
+
